@@ -1,0 +1,124 @@
+AWSTemplateFormatVersion: 2020-10-01
+Description: Aurora-postgresql 10.7 serverless cluster.
+Parameters:
+    NamePrefix:
+        Description: Used for creating name and tags
+        Default: ''
+        Type: String
+      Feature:
+        Description: Name of an build feature
+        Default: ''
+        Type: String
+      APIGatewayInvokeURL:
+        Description: Invoke URL of existing API Gateway deployment
+        Default: ''
+        Type: String
+      Branch:
+        Description: Branch
+        Default: master
+        Type: String
+        
+    DatabaseName:
+          Default: <name>
+          Description: The database name 
+          Type: String
+
+
+    DatabasePassword:
+        Default: <password>
+        AllowedPattern: "[a-zA-Z0-9]+"
+        ConstraintDescription: must contain only alphanumeric characters. Must have length 8-41.
+        Description: The database admin account password. 
+        MaxLength: '41'
+        MinLength: '8'
+        NoEcho: 'true'
+        Type: String
+
+    DatabaseUsername:
+        Default: <username>
+        AllowedPattern: "[a-zA-Z0-9]+"
+        ConstraintDescription: must contain only alphanumeric characters. Must have length 1-16
+        Description: The database admin account user name. 
+        MaxLength: '16'
+        MinLength: '1'
+        Type: String
+
+Metadata:
+    AWS::CloudFormation::Interface:
+        ParameterGroups:
+            - Label:
+                default: Database Configuration
+              Parameters:
+                - DatabaseName
+                - DatabaseUsername
+                - DatabasePassword
+        ParameterLabels:
+            DatabaseName:
+              default: Database name
+            DatabasePassword:
+                default: Database Password
+            DatabaseUsername:
+                default: Database Username
+
+Resources:
+    ParameterGroup:
+        Type: "AWS::RDS::DBParameterGroup"
+        Properties: 
+            Description: aurora DB parameter group 
+            Family: 'aurora-postgresql10'
+            Parameters:
+                max_connections: 300
+
+    DatabaseCluster:
+        Type: AWS::RDS::DBCluster
+        Properties:
+            Engine: aurora-postgresql
+            EngineMode: serverless
+            EngineVersion : '10.7'
+            Port: 5432 
+            SourceRegion: us-west-2
+            
+            MasterUsername:
+              Ref: DatabaseUsername
+            MasterUserPassword:
+              Ref: DatabasePassword
+            BackupRetentionPeriod: 35
+            PreferredBackupWindow: 02:00-03:00
+            PreferredMaintenanceWindow: mon:03:00-mon:04:00
+            VpcSecurityGroupIds:
+              - Ref: DatabaseSecurityGroup
+            DBSubnetGroupName: !Ref DatabaseSubnetGroup
+
+  
+    DatabaseSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties: 
+            VpcId: <VPCID>
+            GroupDescription: Access to database
+            SecurityGroupIngress:
+                - CidrIp: <myIP>
+                  FromPort: 22
+                  ToPort: 443
+                  IpProtocol: tcp
+
+            Tags: 
+                - Key: Name
+                  Value: !Sub ${DatabaseName}-security-group
+    
+    DatabaseSubnetGroup:
+        Type: AWS::RDS::DBSubnetGroup
+        Properties: 
+            DBSubnetGroupDescription:  2 AZ us-west-2a (usw2-az1) and us-west-2b (usw2-az2)
+            SubnetIds: 
+            - <subnetID>
+            - <subnetID>
+    
+Outputs:
+    DatabaseEndpoint: 
+        Description: The database endpoint
+        Value: !GetAtt DatabaseCluster.Endpoint.Address
+
+    DatabasePort:
+        Description: The database port
+        Value: !GetAtt DatabaseCluster.Endpoint.Port
+
